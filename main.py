@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from fastapi import FastAPI
 from fastapi import FastAPI, HTTPException
+from database import get_students, create_student, get_student_by_id
 
 class Student(BaseModel) :
     name: str = Field(min_length= 2)
@@ -30,24 +31,25 @@ def greet(name:str = "bro") :
         "message" : f'Hello, {name}'
     }
 @app.get("/students/{student_id}")
-def get_student(student_id : int) :
-    for student in students :
-        if student["id"] == student_id :
-            return student
-    raise HTTPException(
-        status_code= 404,
-        detail="Student not found"
-    )
+def read_student(student_id : int) :
+    student = get_student_by_id(student_id)
+
+    if student is None :
+        raise HTTPException(
+            status_code = 404,
+            detail = "Student not found"
+        )
+    return student
+ 
 
 @app.post("/students", status_code=201)
-def create_student(student: Student) :
-    global next_student_id
-    new_student = student.model_dump()
-    new_student["id"] = next_student_id
-    students.append(new_student)
-    next_student_id +=1
-    return new_student
+def add_student(student: Student) :
+    return create_student(student)
+ 
 
 @app.get("/students")
-def get_students() :
-    return students
+def read_students() :
+    return get_students()
+
+
+
