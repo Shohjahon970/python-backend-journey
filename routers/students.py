@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from sqlalchemy import select
 from models.student import StudentModel
-from schemas import Student
+from schemas import StudentCreate,StudentResponse,StudentOperationResponse,StudentUpdate
 from fastapi import APIRouter,Depends,HTTPException
 
 router = APIRouter(
@@ -10,14 +10,14 @@ router = APIRouter(
     tags=["students"]
 )
 
-@router.get("/")
+@router.get("/",response_model=list[StudentResponse])
 def get_students(db: Session = Depends(get_db)):
     result = db.execute(select(StudentModel))
     result = result.scalars().all()
     return result
 
-@router.post("/", status_code=201)
-def create_student(student:Student, db:Session = Depends(get_db)):
+@router.post("/", status_code=201, response_model=StudentOperationResponse)
+def create_student(student:StudentCreate, db:Session = Depends(get_db)):
     db_student = StudentModel(
         name = student.name,
         age = student.age,
@@ -52,7 +52,7 @@ def get_students_by_major(major: str | None = None, db:Session = Depends(get_db)
     return result
 
 
-@router.get("/{student_id}")
+@router.get("/{student_id}",response_model = StudentResponse)
 def get_student_by_id(student_id: int, db : Session=Depends(get_db)):
     result = db.execute(select(StudentModel).where(StudentModel.id == student_id))
     result = result.scalar_one_or_none()
@@ -63,8 +63,8 @@ def get_student_by_id(student_id: int, db : Session=Depends(get_db)):
         detail=f"No student found with ID {student_id}"
     )
 
-@router.put("/{student_id}")
-def update_student(student_id: int, student:Student, db:Session=Depends(get_db)):
+@router.put("/{student_id}",response_model=StudentOperationResponse)
+def update_student(student_id: int, student:StudentCreate, db:Session=Depends(get_db)):
     result = db.execute(select(StudentModel).where(StudentModel.id == student_id))
     result = result.scalar_one_or_none()
     if result is None:
@@ -77,8 +77,34 @@ def update_student(student_id: int, student:Student, db:Session=Depends(get_db))
     result.major = student.major
     db.commit()
     db.refresh(result)
+    return {
+        "message":"Student updated successfully.",
+        "student":result
+    }
 
-@router.delete("/{student_id}")
+@router.patch("/{student_id}",response_model=StudentOperationResponse)
+def update_student_info(student_id:int,student:StudentUpdate, db:Session = Depends(get_db)):
+    db_student = db.execute(select(StudentModel).where(StudentModel.id == student_id))
+    db_student= db_student.scalar_one_or_none()
+    if db_student is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No student found with ID {student_id}"
+        )
+    update_data = student.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=400,
+            detail="No fields provided for update"
+        )
+    for field, value in update_data.items():
+        setattr(db_student,field, value)
+    db.commit()
+    db.refresh(db_student)
+    return {
+        "message":"Student updated successfully.",
+        "student":db_student
+    }
 
 
 @router.delete("/{student_id}")
