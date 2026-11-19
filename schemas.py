@@ -21,3 +21,13 @@ class StudentUpdate(BaseModel):
     name:str | None = None
     age: int | None = None
     major: str| None = None
+
+class UserCreate(BaseModel):
+    name: str
+    username: str
+    email: str
+    password: str
+
+
+class UserResponse(BaseModel):
+    message: str
