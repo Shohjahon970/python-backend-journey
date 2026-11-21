@@ -1,12 +1,15 @@
 from fastapi import APIRouter,Depends,HTTPException
-from sqlalchemy import select
+from sqlalchemy import select,or_
 from sqlalchemy.orm import Session
 from database import get_db
-from schemas import UserCreate,UserResponse
+from schemas import UserCreate,UserResponse,UserLogin
 from models.role import RoleModel
-from security import hash_password
+from security import hash_password,verify_password
 from models.user import UserModel
 from sqlalchemy.exc import IntegrityError
+from security import create_access_token
+from fastapi.security import OAuth2PasswordRequestForm
+
 router = APIRouter(
     prefix="/users",
     tags=["users"]
@@ -55,4 +58,58 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return {
         "message":"Registration successful"
+    }
+
+
+@router.post("/login")
+def login_user(user: UserLogin, db:Session = Depends(get_db)):
+    check_identifier = db.execute(select(UserModel).where(or_(UserModel.email == user.identifier, UserModel.username == user.identifier)))
+    check_identifier = check_identifier.scalar_one_or_none()
+    if check_identifier is None:
+        raise HTTPException (
+            status_code=401,
+            detail= "Invalid credentials"
+        )
+    password_check = verify_password(user.password, check_identifier.password_hash)
+    if not password_check:
+        raise HTTPException (
+            status_code=401,
+            detail = "Invalid credentials"
+        )
+    if not check_identifier.is_active:
+        raise HTTPException (
+            status_code=403,
+            detail="Your account is inactive"
+        )
+    access_token = create_access_token(check_identifier.id)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
+    }
+
+
+@router.post("/token")
+def get_token(db: Session = Depends(get_db), form_data : OAuth2PasswordRequestForm = Depends()):
+    current_user = db.execute(select(UserModel).where(or_(form_data.username == UserModel.username, form_data.username == UserModel.email)))
+    current_user = current_user.scalar_one_or_none()
+    if current_user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+    password_check = verify_password(form_data.password, current_user.password_hash)
+    if not password_check:
+        raise HTTPException (
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+    if current_user.is_active is False:
+        raise HTTPException(
+            status_code=403,
+            detail="Your account is inactive"
+        )
+    access_token = create_access_token(current_user.id)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer"
     }
