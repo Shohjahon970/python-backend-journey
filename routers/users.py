@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas import UserCreate,UserResponse,UserLogin
 from models.role import RoleModel
+from models.student import StudentModel
 from security import hash_password,verify_password
 from models.user import UserModel
 from sqlalchemy.exc import IntegrityError
@@ -47,6 +48,13 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     new_user.password_hash = hashed_password
     db.add(new_user)
     try:
+        db.flush()
+        new_student = StudentModel()
+        new_student.age= user.age
+        new_student.major = user.major
+        new_student.name = user.name
+        new_student.user = new_user
+        db.add(new_student)
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -54,8 +62,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
             status_code=409,
             detail="Registration conflicts with existing data"
         )
-
-    db.refresh(new_user)
     return {
         "message":"Registration successful"
     }

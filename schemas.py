@@ -1,4 +1,6 @@
-from pydantic import BaseModel,ConfigDict
+
+
+from pydantic import BaseModel,ConfigDict, Field
 
 class StudentCreate(BaseModel):
     name: str
@@ -27,6 +29,8 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: str
+    age: int = Field(gt=0)
+    major: str
 
 
 class UserResponse(BaseModel):

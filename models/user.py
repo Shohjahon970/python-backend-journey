@@ -4,6 +4,7 @@ from sqlalchemy import Integer, String,Boolean,ForeignKey
 from models.role import RoleModel
 
 
+
 class UserModel(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -14,5 +15,4 @@ class UserModel(Base):
     role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.id"),nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     role: Mapped[RoleModel] = relationship(back_populates="users")
-
-    
+    student: Mapped["StudentModel"] = relationship(back_populates="user")

@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from database import get_db
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from models.student import StudentModel
 from models.user import UserModel
 from schemas import StudentCreate,StudentResponse,StudentOperationResponse,StudentUpdate
@@ -14,42 +14,50 @@ router = APIRouter(
 
 @router.get("/",response_model=list[StudentResponse])
 def get_students(db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
-    result = db.execute(select(StudentModel))
-    result = result.scalars().all()
-    return result
+    if current_user.role.name =="admin":
+        result = db.execute(select(StudentModel))
+        result = result.scalars().all()
+        return result
+    elif current_user.role.name == "student":
+        if current_user.student is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Not Found"
+            )
+        return [current_user.student]
 
-@router.post("/", status_code=201, response_model=StudentOperationResponse)
-def create_student(student:StudentCreate, db:Session = Depends(get_db), admin: UserModel = Depends(require_admin)):
-    db_student = StudentModel(
-        name = student.name,
-        age = student.age,
-        major = student.major
-    )
-    db.add(db_student)
-    db.commit()
-    db.refresh(db_student)
-    return {
-        "message" : "Student created Successfully.",
-        "student": {
-            "id": db_student.id,
-            "name": db_student.name,
-            "age": db_student.age,
-            "major": db_student.major
 
-        }
-    }
-@router.get("/search")
+
+@router.get("/search",response_model =list[StudentResponse])
 def get_students_by_major(major: str | None = None, db:Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)):
+    if current_user.role.name =="student":
+        if current_user.student is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Not Found"
+            )
+        if major is None:
+            return [current_user.student]
+        result = db.execute(select(StudentModel).where(and_(StudentModel.major.ilike(f"%{major}%"), StudentModel.id == current_user.student.id)))
+        result = result.scalar_one_or_none()
+        if result is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Not Found"
+            )
+        return [result]
     if major is None:
         result= db.execute(select(StudentModel))
         result = result.scalars().all()
         return result
+    
     result = db.execute(select(StudentModel).where(StudentModel.major.ilike(f"%{major}%")))
     result = result.scalars().all()
     if len(result) == 0:
         raise HTTPException(
             status_code=404,
-            detail=f"No student found in  {major} major"
+            detail=
+            f"No student found in  {major} major"
         )
     return result
 
@@ -59,10 +67,19 @@ def get_student_by_id(student_id: int, db : Session=Depends(get_db), current_use
     result = db.execute(select(StudentModel).where(StudentModel.id == student_id))
     result = result.scalar_one_or_none()
     if result is not None:
+        if current_user.role.name =="student":
+
+            if current_user.student is not None and current_user.student.id == student_id:
+                return result
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Not Found"
+                )
         return result
     raise  HTTPException(
         status_code=404,
-        detail=f"No student found with ID {student_id}"
+        detail="Not Found"
     )
 
 @router.put("/{student_id}",response_model=StudentOperationResponse)
@@ -120,6 +137,5 @@ def delete_student(student_id:int, db:Session = Depends(get_db), admin: UserMode
         )
     db.delete(student)
     db.commit()
-
 
 

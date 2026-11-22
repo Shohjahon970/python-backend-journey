@@ -9,3 +9,4 @@ __pycache__/
 
 # Local configuration
 .vscode/
+promote_admin.py
